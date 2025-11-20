@@ -1,20 +1,69 @@
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import LoginScreen from './src/screens/LoginScreen';
+import RoutesListScreen from './src/screens/RoutesListScreen';
+import RouteMapScreen from './src/screens/RouteMapScreen';
+import apiService from './src/services/apiService';
+import { Route } from './src/types';
+
+type Screen = 'login' | 'routes' | 'map';
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = await apiService.getToken();
+    if (token) {
+      setIsAuthenticated(true);
+      setCurrentScreen('routes');
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setCurrentScreen('routes');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentScreen('login');
+  };
+
+  const handleSelectRoute = (route: Route) => {
+    setSelectedRoute(route);
+    setCurrentScreen('map');
+  };
+
+  const handleBackToRoutes = () => {
+    setSelectedRoute(null);
+    setCurrentScreen('routes');
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
+    <SafeAreaProvider>
       <StatusBar style="auto" />
-    </View>
+      {currentScreen === 'login' && (
+        <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      )}
+      {currentScreen === 'routes' && (
+        <RoutesListScreen
+          onSelectRoute={handleSelectRoute}
+          onLogout={handleLogout}
+        />
+      )}
+      {currentScreen === 'map' && selectedRoute && (
+        <RouteMapScreen
+          route={selectedRoute}
+          onBack={handleBackToRoutes}
+        />
+      )}
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "app-rutas",
-    "slug": "app-rutas",
+    "name": "Rutas Chofer",
+    "slug": "imporkam-vendedores",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,11 +20,37 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.imporkam.rutas",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      },
+      "versionCode": 100
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Esta app necesita acceso a tu ubicación para mostrar tu posición en el mapa.",
+          "locationWhenInUsePermission": "Esta app necesita acceso a tu ubicación para mostrar tu posición en el mapa."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ace4d555-fb13-4769-9cba-4a587d8c4fe9"
+      }
+    },
+    "owner": "chjulio"
   }
 }

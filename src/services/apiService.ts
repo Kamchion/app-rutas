@@ -34,24 +34,37 @@ class ApiService {
 
   async login(phoneNumber: string, password: string) {
     try {
+      console.log('Intentando login con:', phoneNumber);
+      
       const response = await axios.post(
         `${API_URL}/api/trpc/driver.login`,
-        {
-          json: { phoneNumber, password }
-        },
+        { phoneNumber, password },
         {
           headers: { 'Content-Type': 'application/json' }
         }
       );
 
-      if (response.data?.result?.data?.token) {
-        await this.setToken(response.data.result.data.token);
-        return response.data.result.data;
+      console.log('Respuesta del servidor:', response.data);
+
+      // TRPC devuelve los datos en result.data
+      const data = response.data?.result?.data;
+      
+      if (data?.success && data?.token) {
+        await this.setToken(data.token);
+        return data;
       }
 
-      throw new Error('Login failed');
+      throw new Error('Credenciales inválidas');
     } catch (error: any) {
-      throw new Error(error.response?.data?.error?.message || 'Error al iniciar sesión');
+      console.error('Error en login:', error.response?.data || error.message);
+      
+      // Extraer mensaje de error de TRPC
+      const errorMessage = error.response?.data?.error?.json?.message 
+        || error.response?.data?.error?.message
+        || error.message 
+        || 'Error al iniciar sesión';
+      
+      throw new Error(errorMessage);
     }
   }
 

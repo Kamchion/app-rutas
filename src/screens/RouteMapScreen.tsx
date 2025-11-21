@@ -9,7 +9,7 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Route, RouteStop, Location as LocationType } from '../types';
 import apiService from '../services/apiService';
@@ -210,6 +210,7 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       {region && (
         <MapView
           style={styles.map}
+          provider={PROVIDER_GOOGLE}
           initialRegion={region}
           showsUserLocation
           showsMyLocationButton

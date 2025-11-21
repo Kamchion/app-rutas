@@ -53,12 +53,35 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
 
   const loadRouteDetails = async () => {
     try {
+      console.log('[RouteMapScreen] Loading route details for:', initialRoute.id);
       const details = await apiService.getRouteDetails(initialRoute.id);
+      console.log('[RouteMapScreen] Received details:', JSON.stringify(details, null, 2));
+      
+      // Validar que las paradas tengan coordenadas válidas
+      const validStops = (details.stops || []).filter((stop: RouteStop) => {
+        const hasValidCoords = stop.latitude && stop.longitude && 
+                               !isNaN(stop.latitude) && !isNaN(stop.longitude) &&
+                               stop.latitude !== 0 && stop.longitude !== 0;
+        if (!hasValidCoords) {
+          console.warn('[RouteMapScreen] Invalid stop coords:', stop.id, stop.latitude, stop.longitude);
+        }
+        return hasValidCoords;
+      });
+      
+      console.log('[RouteMapScreen] Valid stops:', validStops.length);
+      
+      if (validStops.length === 0) {
+        Alert.alert('Error', 'Esta ruta no tiene paradas con coordenadas válidas');
+        onBack();
+        return;
+      }
+      
       setRoute(details);
-      setStops(details.stops || []);
+      setStops(validStops);
       setLoading(false);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      console.error('[RouteMapScreen] Error loading route:', error);
+      Alert.alert('Error', error.message || 'Error al cargar detalles de la ruta');
       setLoading(false);
     }
   };
@@ -144,14 +167,27 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   }
 
   const stopsToShow = isOptimized ? optimizedStops : stops;
-  const region = stops.length > 0
+  // Calcular región del mapa con validación
+  const region = stops.length > 0 && stops[0].latitude && stops[0].longitude
     ? {
-        latitude: stops[0].latitude,
-        longitude: stops[0].longitude,
+        latitude: Number(stops[0].latitude),
+        longitude: Number(stops[0].longitude),
         latitudeDelta: 0.1,
         longitudeDelta: 0.1,
       }
     : undefined;
+  
+  // Si no hay región válida, mostrar error
+  if (!loading && !region) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={{ fontSize: 16, color: '#666', marginBottom: 16 }}>No hay coordenadas válidas para mostrar el mapa</Text>
+        <TouchableOpacity onPress={onBack} style={styles.primaryButton}>
+          <Text style={styles.buttonText}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

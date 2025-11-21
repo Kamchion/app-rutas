@@ -49,6 +49,10 @@ class ApiService {
       // TRPC devuelve los datos en result.data
       const data = response.data?.result?.data;
       
+      console.log('Data extraída:', data);
+      console.log('data.success:', data?.success);
+      console.log('data.token:', data?.token);
+      
       if (data?.success && data?.token) {
         await this.setToken(data.token);
         return data;

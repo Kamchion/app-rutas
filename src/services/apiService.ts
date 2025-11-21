@@ -44,15 +44,24 @@ class ApiService {
         }
       );
 
+      console.log('Respuesta completa del servidor:', JSON.stringify(response.data, null, 2));
+      console.log('response.data:', response.data);
+      console.log('response.data.result:', response.data?.result);
+      console.log('response.data.result.data:', response.data?.result?.data);
+
       // TRPC devuelve los datos en result.data
       const result = response.data?.result?.data;
+      
+      console.log('result extraído:', result);
+      console.log('result.success:', result?.success);
+      console.log('result.token:', result?.token);
       
       if (result && result.success && result.token) {
         await this.setToken(result.token);
         return result;
       }
 
-      throw new Error('Error en la respuesta del servidor');
+      throw new Error(`Error en la respuesta del servidor. Respuesta: ${JSON.stringify(response.data)}`);
     } catch (error: any) {
       console.error('Error en login:', error.response?.data || error.message);
       

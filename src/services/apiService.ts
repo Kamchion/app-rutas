@@ -28,7 +28,7 @@ class ApiService {
     const token = await this.getToken();
     return {
       'Content-Type': 'application/json',
-      ...(token && { 'Cookie': `session=${token}` }),
+      ...(token && { 'Authorization': `Bearer ${token}` }),
     };
   }
 

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import apiService from '../services/apiService';
 
@@ -20,6 +21,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 10));
+  };
 
   const handleLogin = async () => {
     if (!phoneNumber || !password) {
@@ -28,10 +35,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
 
     setLoading(true);
+    addLog(`Iniciando login con: ${phoneNumber}`);
+    
     try {
-      await apiService.login(phoneNumber, password);
+      addLog('Enviando petición al servidor...');
+      const result = await apiService.login(phoneNumber, password);
+      addLog(`Respuesta: ${JSON.stringify(result)}`);
+      addLog('Login exitoso!');
       onLoginSuccess();
     } catch (error: any) {
+      addLog(`Error: ${error.message}`);
       Alert.alert('Error', error.message || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
@@ -88,6 +101,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Debug Logs */}
+        {debugLogs.length > 0 && (
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugTitle}>Debug Logs:</Text>
+            <ScrollView style={styles.debugScroll}>
+              {debugLogs.map((log, index) => (
+                <Text key={index} style={styles.debugText}>{log}</Text>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -158,5 +183,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  debugContainer: {
+    marginTop: 20,
+    backgroundColor: '#000',
+    borderRadius: 8,
+    padding: 12,
+    maxHeight: 200,
+  },
+  debugTitle: {
+    color: '#0f0',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  debugScroll: {
+    maxHeight: 150,
+  },
+  debugText: {
+    color: '#0f0',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 4,
   },
 });

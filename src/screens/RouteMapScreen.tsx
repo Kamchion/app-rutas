@@ -9,7 +9,7 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Route, RouteStop, Location as LocationType } from '../types';
 import apiService from '../services/apiService';
@@ -167,7 +167,13 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   }
 
   const stopsToShow = isOptimized ? optimizedStops : stops;
+  
   // Calcular región del mapa con validación
+  console.log('[RouteMapScreen] Calculating region from stops:', stops.length);
+  if (stops.length > 0) {
+    console.log('[RouteMapScreen] First stop:', stops[0].clientName, stops[0].latitude, stops[0].longitude);
+  }
+  
   const region = stops.length > 0 && stops[0].latitude && stops[0].longitude
     ? {
         latitude: Number(stops[0].latitude),
@@ -176,6 +182,8 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
         longitudeDelta: 0.1,
       }
     : undefined;
+  
+  console.log('[RouteMapScreen] Region:', region);
   
   // Si no hay región válida, mostrar error
   if (!loading && !region) {
@@ -202,7 +210,6 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       {region && (
         <MapView
           style={styles.map}
-          provider={PROVIDER_GOOGLE}
           initialRegion={region}
           showsUserLocation
           showsMyLocationButton

@@ -29,19 +29,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
     setLoading(true);
     try {
-      const result = await apiService.login(phoneNumber, password);
-      
-      // DEBUG: Mostrar respuesta completa
-      Alert.alert(
-        'DEBUG - Respuesta del servidor',
-        JSON.stringify(result, null, 2),
-        [
-          {
-            text: 'Continuar',
-            onPress: () => onLoginSuccess()
-          }
-        ]
-      );
+      await apiService.login(phoneNumber, password);
+      onLoginSuccess();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Error al iniciar sesión');
     } finally {

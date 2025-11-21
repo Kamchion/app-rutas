@@ -2,7 +2,7 @@
   "expo": {
     "name": "Rutas Chofer",
     "slug": "imporkam-vendedores",
-    "version": "6.0.4",
+    "version": "6.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -32,7 +32,7 @@
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
         }
       },
-      "versionCode": 604
+      "versionCode": 605
     },
     "web": {
       "favicon": "./assets/favicon.png"

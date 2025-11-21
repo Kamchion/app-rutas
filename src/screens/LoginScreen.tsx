@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/apiService';
 
 interface LoginScreenProps {
@@ -41,8 +42,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       addLog('Enviando petición al servidor...');
       const result = await apiService.login(phoneNumber, password);
       addLog(`Respuesta: ${JSON.stringify(result)}`);
-      addLog('Login exitoso!');
-      onLoginSuccess();
+      
+      if (result.success && result.driver) {
+        // Guardar información del driver
+        await AsyncStorage.setItem('driverId', result.driver.id);
+        await AsyncStorage.setItem('driverName', result.driver.name);
+        await AsyncStorage.setItem('driverPhone', result.driver.phoneNumber);
+        addLog(`Driver guardado: ${result.driver.name}`);
+        addLog('Login exitoso!');
+        onLoginSuccess();
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
     } catch (error: any) {
       addLog(`Error: ${error.message}`);
       Alert.alert('Error', error.message || 'Error al iniciar sesión');

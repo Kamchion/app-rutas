@@ -48,17 +48,23 @@ class ApiService {
       console.log('response.data:', response.data);
       console.log('response.data.result:', response.data?.result);
       console.log('response.data.result.data:', response.data?.result?.data);
+      console.log('response.data.result.data.json:', response.data?.result?.data?.json);
 
-      // TRPC devuelve los datos en result.data
-      const result = response.data?.result?.data;
+      // TRPC devuelve los datos en result.data.json
+      const result = response.data?.result?.data?.json;
       
       console.log('result extraído:', result);
       console.log('result.success:', result?.success);
       console.log('result.token:', result?.token);
+      console.log('result.driver:', result?.driver);
       
       if (result && result.success && result.token) {
         await this.setToken(result.token);
-        return result;
+        return {
+          success: true,
+          token: result.token,
+          driver: result.driver
+        };
       }
 
       throw new Error(`Error en la respuesta del servidor. Respuesta: ${JSON.stringify(response.data)}`);

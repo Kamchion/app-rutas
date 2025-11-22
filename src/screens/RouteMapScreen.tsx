@@ -184,6 +184,9 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       return;
     }
 
+    // Activar modo de navegación (maximizar mapa)
+    setIsNavigating(true);
+
     const url = generateGoogleMapsUrl(stopsToUse, currentLocation || undefined);
     Linking.openURL(url).catch(err => {
       Alert.alert('Error', 'No se pudo abrir Google Maps. Asegúrate de tenerlo instalado.');
@@ -320,13 +323,15 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{route.name}</Text>
-        <View style={styles.headerRight} />
-      </View>
+      {!isNavigating && (
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backText}>← Volver</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{route.name}</Text>
+          <View style={styles.headerRight} />
+        </View>
+      )}
 
       {region && (
         <MapView
@@ -380,31 +385,23 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
         </MapView>
       )}
 
-      <View style={styles.bottomSheet}>
+      <View style={isNavigating ? styles.bottomSheetMinimal : styles.bottomSheet}>
         {/* Información de navegación activa */}
         {isNavigating && (
-          <View style={styles.navigationInfo}>
-            <View style={styles.navigationHeader}>
-              <Text style={styles.navigationTitle}>🧭 Navegando</Text>
-              <Text style={styles.navigationSubtitle}>
-                Parada {currentStopIndex + 1} de {stopsToShow.length}
-              </Text>
-            </View>
-            {stopsToShow[currentStopIndex] && (
-              <View style={styles.currentStopInfo}>
-                <Text style={styles.currentStopName}>
-                  {stopsToShow[currentStopIndex].clientName}
-                </Text>
-                <Text style={styles.currentStopAddress}>
-                  {stopsToShow[currentStopIndex].address}
-                </Text>
-                {currentLocation && (
-                  <Text style={styles.distanceText}>
-                    📍 {calculateDistanceToStop(currentLocation, stopsToShow[currentStopIndex]).toFixed(2)} km
+          <View style={styles.navigationInfoMinimal}>
+            <View style={styles.navigationHeaderMinimal}>
+              <View>
+                <Text style={styles.navigationTitleMinimal}>🧭 {stopsToShow[currentStopIndex]?.clientName || 'Navegando'}</Text>
+                {currentLocation && stopsToShow[currentStopIndex] && (
+                  <Text style={styles.distanceTextMinimal}>
+                    {calculateDistanceToStop(currentLocation, stopsToShow[currentStopIndex]).toFixed(2)} km - Parada {currentStopIndex + 1}/{stopsToShow.length}
                   </Text>
                 )}
               </View>
-            )}
+              <TouchableOpacity onPress={() => setIsNavigating(false)} style={styles.closeNavButton}>
+                <Text style={styles.closeNavText}>✕</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -429,30 +426,32 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.stopsList}>
-          {stopsToShow.map((stop, index) => (
-            <TouchableOpacity
-              key={stop.id}
-              style={[
-                styles.stopCard,
-                stop.status === 'completed' && styles.stopCompleted,
-              ]}
-              onPress={() => handleCompleteStop(stop)}
-            >
-              <View style={styles.stopNumber}>
-                <Text style={styles.stopNumberText}>{index + 1}</Text>
-              </View>
-              <View style={styles.stopInfo}>
-                <Text style={styles.stopName}>{stop.clientName}</Text>
-                <Text style={styles.stopAddress}>{stop.address}</Text>
-                <Text style={styles.stopSku}>SKU: {stop.clientSku}</Text>
-              </View>
-              {stop.status === 'completed' && (
-                <Text style={styles.completedBadge}>✓</Text>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {!isNavigating && (
+          <ScrollView style={styles.stopsList}>
+            {stopsToShow.map((stop, index) => (
+              <TouchableOpacity
+                key={stop.id}
+                style={[
+                  styles.stopCard,
+                  stop.status === 'completed' && styles.stopCompleted,
+                ]}
+                onPress={() => handleCompleteStop(stop)}
+              >
+                <View style={styles.stopNumber}>
+                  <Text style={styles.stopNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.stopInfo}>
+                  <Text style={styles.stopName}>{stop.clientName}</Text>
+                  <Text style={styles.stopAddress}>{stop.address}</Text>
+                  <Text style={styles.stopSku}>SKU: {stop.clientSku}</Text>
+                </View>
+                {stop.status === 'completed' && (
+                  <Text style={styles.completedBadge}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
     </View>
   );
@@ -612,6 +611,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#007AFF',
     marginTop: 2,
+  },
+  navigationInfoMinimal: {
+    backgroundColor: '#007AFF',
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 6,
+  },
+  navigationHeaderMinimal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  navigationTitleMinimal: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  distanceTextMinimal: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  closeNavButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeNavText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   buttonText: {
     color: '#fff',

@@ -177,15 +177,23 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   };
 
   const handleStartNavigation = () => {
-    // Abrir Google Maps para navegar
-    const stopsToUse = isOptimized ? optimizedStops : stops;
-    if (stopsToUse.length === 0) {
-      Alert.alert('Sin paradas', 'No hay paradas para navegar');
-      return;
+    if (isNavigating) {
+      // Si ya está navegando, detener
+      stopInternalNavigation();
+    } else {
+      // Si no está navegando, iniciar
+      const stopsToUse = isOptimized ? optimizedStops : stops;
+      if (stopsToUse.length === 0) {
+        Alert.alert('Sin paradas', 'No hay paradas para navegar');
+        return;
+      }
+      startInternalNavigation();
     }
+  };
 
-    // Activar modo de navegación (maximizar mapa)
-    setIsNavigating(true);
+  const handleOpenGoogleMaps = () => {
+    const stopsToUse = isOptimized ? optimizedStops : stops;
+    if (stopsToUse.length === 0) return;
 
     const url = generateGoogleMapsUrl(stopsToUse, currentLocation || undefined);
     Linking.openURL(url).catch(err => {
@@ -221,23 +229,9 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       await apiService.updateRouteStatus(route.id, 'in_progress');
       setRoute({ ...route, status: 'in_progress' });
       
-      // Iniciar navegación interna automáticamente (tracking GPS silencioso)
-      startInternalNavigation();
-      
-      // Preguntar si desea abrir Google Maps
       Alert.alert(
         'Ruta Iniciada',
-        '¿Deseas abrir Google Maps para navegar?',
-        [
-          { 
-            text: 'Más tarde', 
-            style: 'cancel'
-          },
-          {
-            text: 'Navegar',
-            onPress: () => handleStartNavigation()
-          },
-        ]
+        'Presiona "Navegar" para comenzar la navegación interna con GPS.'
       );
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -411,19 +405,31 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
               <Text style={styles.buttonText}>🚀 Iniciar Ruta</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity 
-              style={styles.navigationButton} 
-              onPress={handleStartNavigation}
-            >
-              <Text style={styles.buttonText}>🧭 Navegar</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={isNavigating ? styles.stopNavigationButton : styles.navigationButton} 
+                onPress={handleStartNavigation}
+              >
+                <Text style={styles.buttonText}>
+                  {isNavigating ? '⏸️ Detener' : '🧭 Navegar'}
+                </Text>
+              </TouchableOpacity>
+              
+              {!isNavigating && (
+                <TouchableOpacity style={styles.mapsButton} onPress={handleOpenGoogleMaps}>
+                  <Text style={styles.buttonText}>🗺️ Maps</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleOptimizeRoute}>
-            <Text style={styles.buttonText}>
-              {isOptimized ? '✓ Optimizada' : '📍 Optimizar'}
-            </Text>
-          </TouchableOpacity>
+          {!isNavigating && (
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleOptimizeRoute}>
+              <Text style={styles.buttonText}>
+                {isOptimized ? '✓ Optimizada' : '📍 Optimizar'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {!isNavigating && (
@@ -533,7 +539,7 @@ const styles = StyleSheet.create({
   navigationButton: {
     flex: 1,
     backgroundColor: '#007AFF',
-    padding: 14,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     shadowColor: '#000',
@@ -544,8 +550,28 @@ const styles = StyleSheet.create({
   },
   stopNavigationButton: {
     flex: 1,
-    backgroundColor: '#FF9500',
-    padding: 14,
+    backgroundColor: '#FF3B30',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  mapsButton: {
+    flex: 0.8,
+    backgroundColor: '#5856D6',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  externalNavButton: {
+    flex: 0.8,
+    backgroundColor: '#5856D6',
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     shadowColor: '#000',

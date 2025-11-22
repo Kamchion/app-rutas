@@ -177,21 +177,18 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   };
 
   const handleStartNavigation = () => {
-    if (isNavigating) {
-      // Si ya está navegando, detener
-      stopInternalNavigation();
-    } else {
-      // Si no está navegando, iniciar
-      startInternalNavigation();
-    }
-  };
-
-  const handleOpenExternalNavigation = () => {
+    // Abrir Google Maps para navegar
     const stopsToUse = isOptimized ? optimizedStops : stops;
-    if (stopsToUse.length === 0) return;
+    if (stopsToUse.length === 0) {
+      Alert.alert('Sin paradas', 'No hay paradas para navegar');
+      return;
+    }
 
     const url = generateGoogleMapsUrl(stopsToUse, currentLocation || undefined);
-    Linking.openURL(url);
+    Linking.openURL(url).catch(err => {
+      Alert.alert('Error', 'No se pudo abrir Google Maps. Asegúrate de tenerlo instalado.');
+      console.error('Error opening maps:', err);
+    });
   };
 
   const handleCompleteStop = async (stop: RouteStop) => {
@@ -221,10 +218,24 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       await apiService.updateRouteStatus(route.id, 'in_progress');
       setRoute({ ...route, status: 'in_progress' });
       
-      // Iniciar navegación interna automáticamente
+      // Iniciar navegación interna automáticamente (tracking GPS silencioso)
       startInternalNavigation();
       
-      Alert.alert('Ruta Iniciada', 'Navegación activada. Sigue las indicaciones en el mapa.');
+      // Preguntar si desea abrir Google Maps
+      Alert.alert(
+        'Ruta Iniciada',
+        '¿Deseas abrir Google Maps para navegar?',
+        [
+          { 
+            text: 'Más tarde', 
+            style: 'cancel'
+          },
+          {
+            text: 'Navegar',
+            onPress: () => handleStartNavigation()
+          },
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message);
     }
@@ -404,18 +415,10 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
             </TouchableOpacity>
           ) : (
             <TouchableOpacity 
-              style={isNavigating ? styles.stopNavigationButton : styles.navigationButton} 
+              style={styles.navigationButton} 
               onPress={handleStartNavigation}
             >
-              <Text style={styles.buttonText}>
-                {isNavigating ? '⏸️ Detener' : '🧭 Navegar'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {route.status !== 'pending' && (
-            <TouchableOpacity style={styles.externalNavButton} onPress={handleOpenExternalNavigation}>
-              <Text style={styles.buttonText}>🗺️ Maps</Text>
+              <Text style={styles.buttonText}>🧭 Navegar</Text>
             </TouchableOpacity>
           )}
 

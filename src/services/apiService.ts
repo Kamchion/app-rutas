@@ -191,6 +191,28 @@ class ApiService {
       throw new Error('Error al eliminar ruta');
     }
   }
+
+  async updateLocation(location: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    timestamp: string;
+  }) {
+    try {
+      await axios.post(
+        `${API_URL}/api/trpc/location.update`,
+        {
+          json: location
+        },
+        {
+          headers: await this.getHeaders()
+        }
+      );
+    } catch (error: any) {
+      console.error('Error updating location:', error);
+      // No lanzar error para no interrumpir el tracking
+    }
+  }
 }
 
 export default new ApiService();

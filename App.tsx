@@ -5,6 +5,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RoutesListScreen from './src/screens/RoutesListScreen';
 import RouteMapScreen from './src/screens/RouteMapScreen';
 import apiService from './src/services/apiService';
+import locationTracker from './src/services/locationTracker';
 import { Route } from './src/types';
 
 type Screen = 'login' | 'routes' | 'map';
@@ -23,15 +24,21 @@ export default function App() {
     if (token) {
       setIsAuthenticated(true);
       setCurrentScreen('routes');
+      // Iniciar rastreo GPS silencioso
+      await locationTracker.startTracking();
     }
   };
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = async () => {
     setIsAuthenticated(true);
     setCurrentScreen('routes');
+    // Iniciar rastreo GPS silencioso
+    await locationTracker.startTracking();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Detener rastreo GPS
+    await locationTracker.stopTracking();
     setIsAuthenticated(false);
     setCurrentScreen('login');
   };

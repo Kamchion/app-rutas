@@ -14,6 +14,7 @@ import * as Location from 'expo-location';
 import { Route, RouteStop, Location as LocationType } from '../types';
 import apiService from '../services/apiService';
 import { optimizeRoute, generateGoogleMapsUrl, calculateTotalDistance } from '../services/routeOptimizer';
+import directionsService, { NavigationStep, DirectionsResult } from '../services/directionsService';
 
 interface RouteMapScreenProps {
   route: Route;
@@ -30,6 +31,10 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
+  const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState<NavigationStep | null>(null);
+  const [distanceToNextManeuver, setDistanceToNextManeuver] = useState<number>(0);
 
   useEffect(() => {
     loadRouteDetails();
@@ -239,37 +244,101 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   };
 
   const startInternalNavigation = async () => {
-    setIsNavigating(true);
-    setCurrentStopIndex(0);
-    
-    // Solicitar permisos de ubicación en segundo plano
-    const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
-    if (foregroundStatus !== 'granted') {
-      Alert.alert('Permiso Denegado', 'Se necesita acceso a la ubicación para navegar');
-      setIsNavigating(false);
-      return;
-    }
-    
-    // Iniciar seguimiento de ubicación en tiempo real
-    const subscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 5000, // Actualizar cada 5 segundos
-        distanceInterval: 10, // O cada 10 metros
-      },
-      (location) => {
-        setCurrentLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
+    try {
+      setIsNavigating(true);
+      setCurrentStopIndex(0);
+      
+      // Solicitar permisos de ubicación
+      const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+      if (foregroundStatus !== 'granted') {
+        Alert.alert('Permiso Denegado', 'Se necesita acceso a la ubicación para navegar');
+        setIsNavigating(false);
+        return;
       }
+
+      // Obtener ubicación actual
+      const location = await Location.getCurrentPositionAsync({});
+      const currentPos = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setCurrentLocation(currentPos);
+
+      // Obtener paradas para navegar
+      const stopsToUse = isOptimized ? optimizedStops : stops;
+      if (stopsToUse.length === 0) {
+        Alert.alert('Sin paradas', 'No hay paradas para navegar');
+        setIsNavigating(false);
+        return;
+      }
+
+      // Obtener direcciones de Google Maps
+      Alert.alert('Cargando', 'Obteniendo ruta de navegación...');
+      const firstStop = stopsToUse[0];
+      const directions = await directionsService.getDirections(
+        currentPos,
+        { latitude: firstStop.latitude, longitude: firstStop.longitude },
+        stopsToUse.slice(1).map(stop => ({ latitude: stop.latitude, longitude: stop.longitude }))
+      );
+
+      setNavigationSteps(directions.steps);
+      setCurrentStepIndex(0);
+      if (directions.steps.length > 0) {
+        setCurrentStep(directions.steps[0]);
+      }
+      
+      // Iniciar seguimiento de ubicación en tiempo real
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 3000, // Actualizar cada 3 segundos
+          distanceInterval: 5, // O cada 5 metros
+        },
+        (loc) => {
+          const newLocation = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+          setCurrentLocation(newLocation);
+          updateNavigationStep(newLocation);
+        }
+      );
+      
+      setLocationSubscription(subscription);
+    } catch (error: any) {
+      console.error('Error starting navigation:', error);
+      Alert.alert('Error', 'No se pudo iniciar la navegación: ' + error.message);
+      setIsNavigating(false);
+    }
+  };
+
+  const updateNavigationStep = (location: LocationType) => {
+    if (navigationSteps.length === 0 || !currentStep) return;
+
+    // Calcular distancia al final del paso actual
+    const distanceToEnd = directionsService.calculateDistance(
+      location.latitude,
+      location.longitude,
+      currentStep.endLocation.lat,
+      currentStep.endLocation.lng
     );
-    
-    setLocationSubscription(subscription);
+
+    setDistanceToNextManeuver(distanceToEnd);
+
+    // Si está cerca del final del paso actual (menos de 20 metros), avanzar al siguiente
+    if (distanceToEnd < 20 && currentStepIndex < navigationSteps.length - 1) {
+      const nextIndex = currentStepIndex + 1;
+      setCurrentStepIndex(nextIndex);
+      setCurrentStep(navigationSteps[nextIndex]);
+    }
   };
 
   const stopInternalNavigation = () => {
     setIsNavigating(false);
+    setNavigationSteps([]);
+    setCurrentStepIndex(0);
+    setCurrentStep(null);
+    setDistanceToNextManeuver(0);
     if (locationSubscription) {
       locationSubscription.remove();
       setLocationSubscription(null);
@@ -380,8 +449,38 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       )}
 
       <View style={isNavigating ? styles.bottomSheetMinimal : styles.bottomSheet}>
-        {/* Información de navegación activa */}
-        {isNavigating && (
+        {/* Panel de navegación turn-by-turn */}
+        {isNavigating && currentStep && (
+          <View style={styles.navigationPanel}>
+            <View style={styles.maneuverContainer}>
+              <Text style={styles.maneuverIcon}>
+                {directionsService.getManeuverIcon(currentStep.maneuver)}
+              </Text>
+              <View style={styles.maneuverInfo}>
+                <Text style={styles.maneuverDistance}>
+                  {distanceToNextManeuver < 1000 
+                    ? `${Math.round(distanceToNextManeuver)} m` 
+                    : `${(distanceToNextManeuver / 1000).toFixed(1)} km`}
+                </Text>
+                <Text style={styles.maneuverInstruction}>{currentStep.instruction}</Text>
+              </View>
+              <TouchableOpacity onPress={stopInternalNavigation} style={styles.closeNavButton}>
+                <Text style={styles.closeNavText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.routeProgress}>
+              <Text style={styles.progressText}>
+                📍 Parada {currentStopIndex + 1}/{stopsToShow.length}: {stopsToShow[currentStopIndex]?.clientName}
+              </Text>
+              <Text style={styles.stepProgress}>
+                Paso {currentStepIndex + 1}/{navigationSteps.length}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Información básica cuando no hay navegación turn-by-turn */}
+        {isNavigating && !currentStep && (
           <View style={styles.navigationInfoMinimal}>
             <View style={styles.navigationHeaderMinimal}>
               <View>
@@ -392,7 +491,7 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
                   </Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => setIsNavigating(false)} style={styles.closeNavButton}>
+              <TouchableOpacity onPress={stopInternalNavigation} style={styles.closeNavButton}>
                 <Text style={styles.closeNavText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -726,5 +825,54 @@ const styles = StyleSheet.create({
   completedBadge: {
     fontSize: 20,
     color: '#34C759',
+  },
+  navigationPanel: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  maneuverContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  maneuverIcon: {
+    fontSize: 48,
+    marginRight: 12,
+  },
+  maneuverInfo: {
+    flex: 1,
+  },
+  maneuverDistance: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+  },
+  maneuverInstruction: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.95)',
+    lineHeight: 18,
+  },
+  routeProgress: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    paddingTop: 8,
+  },
+  progressText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  stepProgress: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });

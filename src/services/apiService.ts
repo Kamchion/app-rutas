@@ -174,6 +174,23 @@ class ApiService {
       throw new Error('Error al guardar ruta optimizada');
     }
   }
+
+  async deleteRoute(routeId: string) {
+    try {
+      await axios.post(
+        `${API_URL}/api/trpc/route.deleteRoute`,
+        {
+          json: { routeId }
+        },
+        {
+          headers: await this.getHeaders()
+        }
+      );
+    } catch (error: any) {
+      console.error('Error deleting route:', error);
+      throw new Error('Error al eliminar ruta');
+    }
+  }
 }
 
 export default new ApiService();

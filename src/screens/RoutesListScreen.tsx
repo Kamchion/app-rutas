@@ -91,39 +91,75 @@ export default function RoutesListScreen({ onSelectRoute, onLogout }: RoutesList
     }
   };
 
+  const handleDeleteRoute = (route: Route) => {
+    Alert.alert(
+      'Eliminar Ruta',
+      `¿Estás seguro de que deseas eliminar la ruta "${route.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteRoute(route.id);
+              Alert.alert('Éxito', 'Ruta eliminada correctamente');
+              loadRoutes();
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderRoute = ({ item }: { item: Route }) => (
-    <TouchableOpacity
-      style={styles.routeCard}
-      onPress={() => onSelectRoute(item)}
-    >
-      <View style={styles.routeHeader}>
-        <Text style={styles.routeName}>{item.name}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+    <View style={styles.routeCardContainer}>
+      <TouchableOpacity
+        style={styles.routeCard}
+        onPress={() => onSelectRoute(item)}
+        onLongPress={() => handleDeleteRoute(item)}
+      >
+        <View style={styles.routeHeader}>
+          <Text style={styles.routeName}>{item.name}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.routeInfo}>
-        <Text style={styles.infoText}>
-          📅 {new Date(item.routeDate).toLocaleDateString()}
-        </Text>
-        <Text style={styles.infoText}>
-          📍 {item.completedStops} / {item.totalStops} paradas
-        </Text>
-      </View>
+        <View style={styles.routeInfo}>
+          <Text style={styles.infoText}>
+            📅 {new Date(item.routeDate).toLocaleDateString()}
+          </Text>
+          <Text style={styles.infoText}>
+            📍 {item.completedStops} / {item.totalStops} paradas
+          </Text>
+        </View>
 
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            {
-              width: `${(item.completedStops / item.totalStops) * 100}%`,
-              backgroundColor: getStatusColor(item.status),
-            },
-          ]}
-        />
-      </View>
-    </TouchableOpacity>
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${(item.completedStops / item.totalStops) * 100}%`,
+                backgroundColor: getStatusColor(item.status),
+              },
+            ]}
+          />
+        </View>
+      </TouchableOpacity>
+      
+      {/* Botón de eliminar visible para rutas completadas o canceladas */}
+      {(item.status === 'completed' || item.status === 'cancelled') && (
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDeleteRoute(item)}
+        >
+          <Text style={styles.deleteButtonText}>🗑️</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   if (loading) {
@@ -201,16 +237,38 @@ const styles = StyleSheet.create({
   list: {
     padding: 16,
   },
+  routeCardContainer: {
+    position: 'relative',
+    marginBottom: 12,
+  },
   routeCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FF3B30',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  deleteButtonText: {
+    fontSize: 18,
   },
   routeHeader: {
     flexDirection: 'row',

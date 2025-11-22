@@ -152,7 +152,27 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
     try {
       await apiService.updateRouteStatus(route.id, 'in_progress');
       setRoute({ ...route, status: 'in_progress' });
-      Alert.alert('Éxito', 'Ruta iniciada');
+      
+      // Iniciar navegación automáticamente
+      const stopsToUse = isOptimized ? optimizedStops : stops;
+      if (stopsToUse.length > 0) {
+        const url = generateGoogleMapsUrl(stopsToUse, currentLocation || undefined);
+        
+        Alert.alert(
+          'Ruta Iniciada',
+          '¿Deseas abrir la navegación en Google Maps?',
+          [
+            { 
+              text: 'Más tarde', 
+              style: 'cancel'
+            },
+            {
+              text: 'Navegar Ahora',
+              onPress: () => Linking.openURL(url)
+            },
+          ]
+        );
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message);
     }
@@ -251,20 +271,20 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
 
       <View style={styles.bottomSheet}>
         <View style={styles.actions}>
-          {route.status === 'pending' && (
-            <TouchableOpacity style={styles.primaryButton} onPress={handleStartRoute}>
-              <Text style={styles.buttonText}>Iniciar Ruta</Text>
+          {route.status === 'pending' ? (
+            <TouchableOpacity style={styles.startButton} onPress={handleStartRoute}>
+              <Text style={styles.buttonText}>🚀 Iniciar Ruta</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.navigationButton} onPress={handleStartNavigation}>
+              <Text style={styles.buttonText}>🧭 Navegar</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity style={styles.secondaryButton} onPress={handleOptimizeRoute}>
             <Text style={styles.buttonText}>
-              {isOptimized ? '✓ Optimizada' : 'Optimizar Ruta'}
+              {isOptimized ? '✓ Optimizada' : '📍 Optimizar'}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleStartNavigation}>
-            <Text style={styles.buttonText}>Navegar</Text>
           </TouchableOpacity>
         </View>
 
@@ -357,6 +377,30 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  startButton: {
+    flex: 1,
+    backgroundColor: '#FF3B30',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  navigationButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   secondaryButton: {
     flex: 1,

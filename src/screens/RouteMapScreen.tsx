@@ -27,11 +27,69 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   const [currentLocation, setCurrentLocation] = useState<LocationType | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOptimized, setIsOptimized] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [currentStopIndex, setCurrentStopIndex] = useState(0);
+  const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
     loadRouteDetails();
     getCurrentLocation();
+    
+    return () => {
+      // Cleanup: detener seguimiento de ubicación al desmontar
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
   }, []);
+
+  // Efecto para actualizar la parada actual basado en la ubicación
+  useEffect(() => {
+    if (!isNavigating || !currentLocation) return;
+    
+    const stopsToUse = isOptimized ? optimizedStops : stops;
+    if (stopsToUse.length === 0) return;
+    
+    // Calcular distancia a la parada actual
+    const currentStop = stopsToUse[currentStopIndex];
+    if (!currentStop) return;
+    
+    const distance = calculateDistanceToStop(currentLocation, currentStop);
+    
+    // Si está a menos de 100 metros de la parada actual, avanzar a la siguiente
+    if (distance < 0.1 && currentStopIndex < stopsToUse.length - 1) {
+      Alert.alert(
+        'Llegaste a la parada',
+        `Has llegado a ${currentStop.clientName}. ¿Marcar como completada?`,
+        [
+          {
+            text: 'No',
+            style: 'cancel',
+            onPress: () => setCurrentStopIndex(currentStopIndex + 1)
+          },
+          {
+            text: 'Completar',
+            onPress: async () => {
+              await handleCompleteStop(currentStop);
+              setCurrentStopIndex(currentStopIndex + 1);
+            }
+          }
+        ]
+      );
+    }
+  }, [currentLocation, isNavigating, currentStopIndex]);
+
+  const calculateDistanceToStop = (from: LocationType, stop: RouteStop): number => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (stop.latitude - from.latitude) * Math.PI / 180;
+    const dLon = (stop.longitude - from.longitude) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(from.latitude * Math.PI / 180) * Math.cos(stop.latitude * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   const getCurrentLocation = async () => {
     try {
@@ -119,6 +177,16 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
   };
 
   const handleStartNavigation = () => {
+    if (isNavigating) {
+      // Si ya está navegando, detener
+      stopInternalNavigation();
+    } else {
+      // Si no está navegando, iniciar
+      startInternalNavigation();
+    }
+  };
+
+  const handleOpenExternalNavigation = () => {
     const stopsToUse = isOptimized ? optimizedStops : stops;
     if (stopsToUse.length === 0) return;
 
@@ -153,28 +221,50 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       await apiService.updateRouteStatus(route.id, 'in_progress');
       setRoute({ ...route, status: 'in_progress' });
       
-      // Iniciar navegación automáticamente
-      const stopsToUse = isOptimized ? optimizedStops : stops;
-      if (stopsToUse.length > 0) {
-        const url = generateGoogleMapsUrl(stopsToUse, currentLocation || undefined);
-        
-        Alert.alert(
-          'Ruta Iniciada',
-          '¿Deseas abrir la navegación en Google Maps?',
-          [
-            { 
-              text: 'Más tarde', 
-              style: 'cancel'
-            },
-            {
-              text: 'Navegar Ahora',
-              onPress: () => Linking.openURL(url)
-            },
-          ]
-        );
-      }
+      // Iniciar navegación interna automáticamente
+      startInternalNavigation();
+      
+      Alert.alert('Ruta Iniciada', 'Navegación activada. Sigue las indicaciones en el mapa.');
     } catch (error: any) {
       Alert.alert('Error', error.message);
+    }
+  };
+
+  const startInternalNavigation = async () => {
+    setIsNavigating(true);
+    setCurrentStopIndex(0);
+    
+    // Solicitar permisos de ubicación en segundo plano
+    const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+    if (foregroundStatus !== 'granted') {
+      Alert.alert('Permiso Denegado', 'Se necesita acceso a la ubicación para navegar');
+      setIsNavigating(false);
+      return;
+    }
+    
+    // Iniciar seguimiento de ubicación en tiempo real
+    const subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 5000, // Actualizar cada 5 segundos
+        distanceInterval: 10, // O cada 10 metros
+      },
+      (location) => {
+        setCurrentLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+      }
+    );
+    
+    setLocationSubscription(subscription);
+  };
+
+  const stopInternalNavigation = () => {
+    setIsNavigating(false);
+    if (locationSubscription) {
+      locationSubscription.remove();
+      setLocationSubscription(null);
     }
   };
 
@@ -243,18 +333,28 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
             />
           )}
 
-          {stopsToShow.map((stop, index) => (
-            <Marker
-              key={stop.id}
-              coordinate={{
-                latitude: stop.latitude,
-                longitude: stop.longitude,
-              }}
-              title={`${index + 1}. ${stop.clientName}`}
-              description={stop.address}
-              pinColor={stop.status === 'completed' ? 'green' : 'red'}
-            />
-          ))}
+          {stopsToShow.map((stop, index) => {
+            const isCurrentStop = isNavigating && index === currentStopIndex;
+            const isCompleted = stop.status === 'completed';
+            
+            return (
+              <Marker
+                key={stop.id}
+                coordinate={{
+                  latitude: stop.latitude,
+                  longitude: stop.longitude,
+                }}
+                title={`${index + 1}. ${stop.clientName}`}
+                description={stop.address}
+                pinColor={
+                  isCompleted ? 'green' : 
+                  isCurrentStop ? 'orange' : 
+                  'red'
+                }
+                opacity={isCurrentStop ? 1 : 0.7}
+              />
+            );
+          })}
 
           {stopsToShow.length > 1 && (
             <Polyline
@@ -270,14 +370,52 @@ export default function RouteMapScreen({ route: initialRoute, onBack }: RouteMap
       )}
 
       <View style={styles.bottomSheet}>
+        {/* Información de navegación activa */}
+        {isNavigating && (
+          <View style={styles.navigationInfo}>
+            <View style={styles.navigationHeader}>
+              <Text style={styles.navigationTitle}>🧭 Navegando</Text>
+              <Text style={styles.navigationSubtitle}>
+                Parada {currentStopIndex + 1} de {stopsToShow.length}
+              </Text>
+            </View>
+            {stopsToShow[currentStopIndex] && (
+              <View style={styles.currentStopInfo}>
+                <Text style={styles.currentStopName}>
+                  {stopsToShow[currentStopIndex].clientName}
+                </Text>
+                <Text style={styles.currentStopAddress}>
+                  {stopsToShow[currentStopIndex].address}
+                </Text>
+                {currentLocation && (
+                  <Text style={styles.distanceText}>
+                    📍 {calculateDistanceToStop(currentLocation, stopsToShow[currentStopIndex]).toFixed(2)} km
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.actions}>
           {route.status === 'pending' ? (
             <TouchableOpacity style={styles.startButton} onPress={handleStartRoute}>
               <Text style={styles.buttonText}>🚀 Iniciar Ruta</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.navigationButton} onPress={handleStartNavigation}>
-              <Text style={styles.buttonText}>🧭 Navegar</Text>
+            <TouchableOpacity 
+              style={isNavigating ? styles.stopNavigationButton : styles.navigationButton} 
+              onPress={handleStartNavigation}
+            >
+              <Text style={styles.buttonText}>
+                {isNavigating ? '⏸️ Detener' : '🧭 Navegar'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {route.status !== 'pending' && (
+            <TouchableOpacity style={styles.externalNavButton} onPress={handleOpenExternalNavigation}>
+              <Text style={styles.buttonText}>🗺️ Maps</Text>
             </TouchableOpacity>
           )}
 
@@ -402,12 +540,75 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
+  stopNavigationButton: {
+    flex: 1,
+    backgroundColor: '#FF9500',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  externalNavButton: {
+    flex: 0.8,
+    backgroundColor: '#5856D6',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
   secondaryButton: {
     flex: 1,
     backgroundColor: '#34C759',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  navigationInfo: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+  },
+  navigationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  navigationTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  navigationSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  currentStopInfo: {
+    marginTop: 8,
+  },
+  currentStopName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  currentStopAddress: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 4,
+  },
+  distanceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginTop: 4,
   },
   buttonText: {
     color: '#fff',

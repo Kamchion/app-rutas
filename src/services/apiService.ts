@@ -199,10 +199,26 @@ class ApiService {
     timestamp: string;
   }) {
     try {
+      // Obtener driverId del storage
+      const driverId = await AsyncStorage.getItem('driverId');
+      if (!driverId) {
+        console.error('No driverId found in storage');
+        return;
+      }
+
+      // Convertir timestamp ISO string a timestamp number
+      const timestampMs = new Date(location.timestamp).getTime();
+
       await axios.post(
-        `${API_URL}/api/trpc/location.update`,
+        `${API_URL}/api/trpc/driver.updateLocation`,
         {
-          json: location
+          json: {
+            driverId: driverId,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            timestamp: timestampMs
+          }
         },
         {
           headers: await this.getHeaders()
